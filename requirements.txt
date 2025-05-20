@@ -1,0 +1,14 @@
+flask
+fastapi
+uvicorn
+streamlit
+librosa
+pydub
+scikit-learn
+speechbrain
+torch
+torchaudio
+numpy
+matplotlib
+soundfile
+jinja2
