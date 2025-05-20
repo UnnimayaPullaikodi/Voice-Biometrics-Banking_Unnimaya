@@ -53,4 +53,14 @@ This project aims to develop a real-time **Voice Biometric System** for secure b
 ---
 
 ## Folder Structure
+voice-biometrics-banking/
+│
+├── app/ # Flask or Streamlit app
+├── models/ # Model definitions
+├── data/ # Audio samples, datasets
+├── utils/ # Feature extraction, helper functions
+├── notebooks/ # Jupyter notebooks for testing
+├── docs/ # Reports, diagrams
+├── requirements.txt
+└── README.md
 
