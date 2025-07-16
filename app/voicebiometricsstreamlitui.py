@@ -1,74 +1,78 @@
-"""import streamlit as st
-
-from pyngrok import ngrok
-from audio_recorder_streamlit import audio_recorder
-
-# Start tunnel
-#public_url = ngrok.connect(8501)
-#print("Public URL:", public_url)
-
-
-st.title("Helllooo")
-
-
-
-audio_bytes = audio_recorder(energy_threshold=(-1.0, 1.0),
-  pause_threshold=4.0,)
-if audio_bytes:
-    st.audio(audio_bytes, format="audio/wav")
-
-
-uploaded_file = st.file_uploader("Choose a file",type=['.mp3','.ogg','.flac'])
-if uploaded_file is not None:
-    # To read file as bytes:
-    bytes_data = uploaded_file.getvalue()
-    st.write(bytes_data)
-if __name__ == "__main__":
-    from pyngrok import ngrok
-    public_url = ngrok.connect(8501)
-    print("Public URL:", public_url)"""
-    
-    # streamlit_app.py
-
 import streamlit as st
-import sys
+import sounddevice as sd
+import scipy.io.wavfile as wav
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Convert2Wav.ConvertAudioToWav import convert_folder_to_wav
-from io import BytesIO
+import tempfile
+import datetime
 
+# --------- Setup ---------
+RECORDINGS_DIR = "recordings"
+os.makedirs(RECORDINGS_DIR, exist_ok=True)
+USER_INPUT="user_input"
+os.makedirs(USER_INPUT, exist_ok=True)
 
-UPLOAD_DIR = "uploaded_audio"
-OUTPUT_DIR = "converted_audio"
+st.set_page_config(page_title="Voice Biometrics", layout="centered")
+st.title("🔊 Voice Biometrics ")
 
-st.title("🎵 Voice Biometrics for Safe Banking")
+# Navigation
+page = st.sidebar.radio("Navigation", ["Register", "Money Transfer"])
 
-uploaded_files = st.file_uploader("Upload audio files", type=["mp3", "m4a", "aac", "ogg", "flac", "wav"], accept_multiple_files=True)
+# --------- Voice Recording Function ---------
+def record_audio(duration=5, fs=16000):
+    st.info(f"Recording for {duration} seconds...")
+    audio = sd.rec(int(duration * fs), samplerate=fs, channels=1)
+    sd.wait()
+    st.success("Recording complete.")
+    return audio, fs
 
-if uploaded_files:
-    # Create folders if they don't exist
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+# --------- Save Audio Function ---------
+def save_audio(audio, fs, filename):
+    wav.write(filename, fs, audio)
+    st.success(f"Audio saved: {filename}")
 
-    # Step 1: Save uploaded files
-    for file in uploaded_files:
-        with open(os.path.join(UPLOAD_DIR, file.name), "wb") as f:
-            f.write(file.read())
+# --------- Register Page ---------
+if page == "Register":
+    st.subheader("📋 Register New User")
+    user_id = st.text_input("Enter a Unique User ID")
 
-    st.success(f"Uploaded {len(uploaded_files)} files.")
+    if user_id:
+        if st.button("Record Voice Sample"):
+            audio, fs = record_audio()
+            audio_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
+            save_audio(audio, fs, audio_path)
+            st.audio(audio_path, format='audio/wav')
+            st.success(f"✅ User '{user_id}' registered successfully!")
+    else:
+        st.warning("Please enter a User ID before recording.")
 
-    # Step 2: Convert using your batch_converter
-    convert_folder_to_wav(UPLOAD_DIR, OUTPUT_DIR)
+# --------- Money Transfer Page ---------
+elif page == "Money Transfer":
+    st.subheader("💸 Money Transfer with Voice Verification")
 
-    # Step 3: Display and allow download
-    st.header("🎧 Converted WAV Files")
-    for filename in os.listdir(OUTPUT_DIR):
-        if filename.endswith(".wav"):
-            file_path = os.path.join(OUTPUT_DIR, filename)
-            with open(file_path, "rb") as f:
-                st.audio(f.read(), format="audio/wav")
-                f.seek(0)
-                st.download_button("Download " + filename, data=f, file_name=filename, mime="audio/wav")
+    user_id = st.text_input("Enter Your User ID")
+    recipient = st.selectbox("Send Money To", ["John", "Alice", "Bob", "Emily"])
+    amount = st.number_input("Amount to Transfer ($)", min_value=1.0, step=1.0)
+    note = st.text_input("Note (optional)", placeholder="e.g., for rent")
 
+    # Construct phrase for user to say
+    phrase = f"Transfer ${int(amount)} to {recipient}"
+    st.markdown(f"### 🗣 Please say this phrase:\n> **\"{phrase}\"**")
 
-#streamlit run StreamlitUI/voicebiometricsstreamlitui.py
+    if user_id and st.button("Record & Verify"):
+        audio, fs = record_audio()
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        temp_file = os.path.join(USER_INPUT, f"{user_id}_transfer_{timestamp}.wav")
+        save_audio(audio, fs, temp_file)
+        st.audio(temp_file, format='audio/wav')
+
+        st.info("🔍 Verifying voice...")
+
+        # Placeholder logic for voice matching
+        # TODO: Add real embedding + Pinecone verification here
+        verified = True  # Simulated success
+
+        if verified:
+            st.success(f"✅ Voice verified. ${int(amount)} sent to {recipient}.")
+            st.balloons()
+        else:
+            st.error("❌ Voice mismatch. Transaction blocked.")
