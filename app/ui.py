@@ -30,18 +30,47 @@ def save_audio(audio, fs, filename):
     wav.write(filename, fs, audio)
     st.success(f"Audio saved: {filename}")
 
+# --------- Check if User ID Already Exists ---------
+def is_user_id_taken(user_id):
+    """Check if a user ID already exists in the recordings directory"""
+    audio_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
+    return os.path.exists(audio_path)
+
+# --------- Get List of Registered Users ---------
+def get_registered_users():
+    """Get list of all registered user IDs"""
+    users = []
+    if os.path.exists(RECORDINGS_DIR):
+        for file in os.listdir(RECORDINGS_DIR):
+            if file.endswith('.wav'):
+                user_id = file.replace('.wav', '')
+                users.append(user_id)
+    return users
+
 # --------- Register Page ---------
 if page == "Register":
     st.subheader("📋 Register New User")
+    
+    # Show existing users (optional - for reference)
+    existing_users = get_registered_users()
+    # if existing_users:
+    #     st.info(f"📝 Existing users: {', '.join(existing_users)}")
+    
     user_id = st.text_input("Enter a Unique User ID")
 
     if user_id:
-        if st.button("Record Voice Sample"):
-            audio, fs = record_audio()
-            audio_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
-            save_audio(audio, fs, audio_path)
-            st.audio(audio_path, format='audio/wav')
-            st.success(f"✅ User '{user_id}' registered successfully!")
+        # Check if user ID already exists
+        if is_user_id_taken(user_id):
+            st.error(f"❌ User ID '{user_id}' is already taken. Please choose a different username.")
+        else:
+            st.success(f"✅ User ID '{user_id}' is available!")
+            
+            if st.button("Record Voice Sample"):
+                audio, fs = record_audio()
+                audio_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
+                save_audio(audio, fs, audio_path)
+                st.audio(audio_path, format='audio/wav')
+                st.success(f"✅ User '{user_id}' registered successfully!")
     else:
         st.warning("Please enter a User ID before recording.")
 
