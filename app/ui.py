@@ -2,8 +2,8 @@ import streamlit as st
 import sounddevice as sd
 import scipy.io.wavfile as wav
 import os
-import tempfile
 import datetime
+from voice_verification import verify_user_voice
 
 # --------- Setup ---------
 RECORDINGS_DIR = "recordings"
@@ -100,8 +100,11 @@ elif page == "Money Transfer":
 
             st.info("🔍 Verifying voice...")
 
-            # Placeholder for actual verification
-            verified = True  # Simulated result
+            try:
+                verified = verify_user_voice(reference_file, user_audio_path)
+            except Exception as e:
+                st.error(f"❌ Verification error: {e}")
+                verified = False
 
             if verified:
                 st.success(f"✅ Voice verified. ${int(amount)} sent to {recipient}.")
