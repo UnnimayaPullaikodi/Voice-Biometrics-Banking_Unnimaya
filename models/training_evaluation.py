@@ -129,7 +129,6 @@ def similarity_search(audio_path: str, index, top_k: int = 5):
     return index.query(vector=query_embedding.tolist(), top_k=top_k, include_metadata=True)
 
 
-# ⚠️ This block only runs if the file is executed directly
 if __name__ == "__main__":
     embeddings, ids, metadata_list = process_audio_directory(
         input_folder="recordings_training",
