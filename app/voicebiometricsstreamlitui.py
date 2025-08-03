@@ -1,9 +1,13 @@
+import sys
 import streamlit as st
 import sounddevice as sd
 import scipy.io.wavfile as wav
 import os
 import datetime
 from faker import Faker
+#from models.training_evaluation import audio_to_embedding_enhanced, init_pinecone
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.training_evaluation import audio_to_embedding_enhanced, init_pinecone
 
 # Setup
