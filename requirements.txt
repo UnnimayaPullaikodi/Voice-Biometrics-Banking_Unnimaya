@@ -12,4 +12,5 @@ numpy
 matplotlib
 soundfile
 jinja2
-sounddevice
+streamlit-webrtc
+
