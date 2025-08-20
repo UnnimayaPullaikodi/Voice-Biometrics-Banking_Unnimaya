@@ -7,7 +7,6 @@ from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 import av
 import numpy as np
 import scipy.io.wavfile as wav
-
 # Custom imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.training_evaluation import audio_to_embedding_enhanced, init_pinecone
