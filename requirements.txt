@@ -1,7 +1,5 @@
-flask
-fastapi
-uvicorn
 streamlit
+streamlit-webrtc
 librosa
 pydub
 scikit-learn
@@ -11,6 +9,7 @@ torchaudio
 numpy
 matplotlib
 soundfile
+flask
+fastapi
+uvicorn
 jinja2
-streamlit-webrtc
-
