@@ -16,3 +16,4 @@ jinja2
 faker
 seaborn
 noisereduce
+pinecone-client
