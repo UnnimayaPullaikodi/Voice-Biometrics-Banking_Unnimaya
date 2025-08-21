@@ -7,6 +7,7 @@ from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 import av
 import numpy as np
 import scipy.io.wavfile as wav
+
 # Custom imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.training_evaluation import audio_to_embedding_enhanced, init_pinecone
@@ -35,45 +36,44 @@ class AudioProcessor(AudioProcessorBase):
         self.frames.append(frame.to_ndarray())
         return frame
 
-def record_audio_webrtc(filename, fs=16000):
-    ctx = webrtc_streamer(
-        key=filename,
-        mode=WebRtcMode.SENDRECV,
-        audio_processor_factory=AudioProcessor,
-        media_stream_constraints={"audio": True, "video": False},
-    )
-    if ctx.audio_processor:
-        st.info("🎙️ Recording... speak into your microphone.")
-        if st.button("✅ Stop & Save Recording"):
-            audio = np.concatenate(ctx.audio_processor.frames, axis=0).astype(np.int16)
-            wav.write(filename, fs, audio)
-            st.success(f"🎧 Audio recorded and saved: {filename}")
-            return filename
-    return None
-
 # -------------------- REGISTER --------------------
 if page == "Register":
     st.subheader("📝 Register Your Voice")
     st.info(fake.sentence())
 
     if user_id:
-        raw_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
-        recorded = record_audio_webrtc(raw_path)
-        if recorded:
-            st.audio(raw_path, format='audio/wav')
-            try:
-                index = init_pinecone()
-                embedding = audio_to_embedding_enhanced(raw_path)
+        ctx = webrtc_streamer(
+            key=f"register-{user_id}",
+            mode=WebRtcMode.SENDRECV,
+            audio_processor_factory=AudioProcessor,
+            media_stream_constraints={"audio": True, "video": False},
+        )
 
-                if embedding is not None:
-                    index.upsert([
-                        (user_id, embedding.tolist(), {"source": "registration", "file": f"{user_id}.wav"})
-                    ])
-                    st.success("✅ Voice registered and stored in Pinecone.")
+        if ctx.audio_processor:
+            st.info("🎙️ Recording... speak into your microphone.")
+            if st.button("✅ Stop & Save Recording"):
+                if ctx.audio_processor.frames:
+                    audio = np.concatenate(ctx.audio_processor.frames, axis=0).astype(np.int16)
+                    raw_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
+                    wav.write(raw_path, 16000, audio)
+                    st.success(f"🎧 Audio recorded and saved: {raw_path}")
+                    st.audio(raw_path, format="audio/wav")
+
+                    # Generate embedding and store in Pinecone
+                    try:
+                        index = init_pinecone()
+                        embedding = audio_to_embedding_enhanced(raw_path)
+                        if embedding is not None:
+                            index.upsert([
+                                (user_id, embedding.tolist(), {"source": "registration", "file": f"{user_id}.wav"})
+                            ])
+                            st.success("✅ Voice registered and stored in Pinecone.")
+                        else:
+                            st.error("❌ Failed to extract voice embedding.")
+                    except Exception as e:
+                        st.error(f"💥 Error during registration: {e}")
                 else:
-                    st.error("❌ Failed to extract voice embedding.")
-            except Exception as e:
-                st.error(f"💥 Error during registration: {e}")
+                    st.error("❌ No audio frames captured. Please try again.")
     else:
         st.warning("⚠️ Please enter a User ID.")
 
@@ -90,32 +90,47 @@ elif page == "Money Transfer":
     if user_id:
         reference_file = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
         if os.path.exists(reference_file):
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            test_path = os.path.join(USER_INPUT, f"{user_id}_test_{timestamp}.wav")
-            recorded = record_audio_webrtc(test_path)
-            if recorded:
-                st.audio(test_path, format='audio/wav')
-                try:
-                    index = init_pinecone()
-                    query_embedding = audio_to_embedding_enhanced(test_path)
+            ctx = webrtc_streamer(
+                key=f"transfer-{user_id}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
+                mode=WebRtcMode.SENDRECV,
+                audio_processor_factory=AudioProcessor,
+                media_stream_constraints={"audio": True, "video": False},
+            )
 
-                    if query_embedding is not None:
-                        matches = index.query(vector=query_embedding.tolist(), top_k=1, include_metadata=True)
-                        if matches and matches['matches']:
-                            match = matches['matches'][0]
-                            st.write(f"🔍 Match Found: **{match['id']}** | Score: `{match['score']:.4f}`")
+            if ctx.audio_processor:
+                st.info("🎙️ Recording... speak the phrase now.")
+                if st.button("✅ Stop & Verify Recording"):
+                    if ctx.audio_processor.frames:
+                        audio = np.concatenate(ctx.audio_processor.frames, axis=0).astype(np.int16)
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        test_path = os.path.join(USER_INPUT, f"{user_id}_test_{timestamp}.wav")
+                        wav.write(test_path, 16000, audio)
+                        st.success(f"🎧 Audio recorded and saved: {test_path}")
+                        st.audio(test_path, format="audio/wav")
 
-                            if match['id'] == user_id:
-                                st.success(f"✅ Voice verified. ${int(amount)} sent to {recipient}.")
-                                st.balloons()
+                        # Generate embedding and query Pinecone
+                        try:
+                            index = init_pinecone()
+                            query_embedding = audio_to_embedding_enhanced(test_path)
+                            if query_embedding is not None:
+                                matches = index.query(vector=query_embedding.tolist(), top_k=1, include_metadata=True)
+                                if matches and matches['matches']:
+                                    match = matches['matches'][0]
+                                    st.write(f"🔍 Match Found: **{match['id']}** | Score: `{match['score']:.4f}`")
+
+                                    if match['id'] == user_id:
+                                        st.success(f"✅ Voice verified. ${int(amount)} sent to {recipient}.")
+                                        st.balloons()
+                                    else:
+                                        st.error("❌ Voice mismatch. Transaction blocked.")
+                                else:
+                                    st.warning("⚠️ No match found.")
                             else:
-                                st.error("❌ Voice mismatch. Transaction blocked.")
-                        else:
-                            st.warning("⚠️ No match found.")
+                                st.error("❌ Failed to extract embedding from test audio.")
+                        except Exception as e:
+                            st.error(f"💥 Verification failed: {e}")
                     else:
-                        st.error("❌ Failed to extract embedding from test audio.")
-                except Exception as e:
-                    st.error(f"💥 Verification failed: {e}")
+                        st.error("❌ No audio frames captured. Please try again.")
         else:
             st.error(f"🚫 No registered voice found for '{user_id}'.")
     else:
