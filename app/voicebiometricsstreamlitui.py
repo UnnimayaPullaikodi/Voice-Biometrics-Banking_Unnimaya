@@ -36,12 +36,24 @@ class AudioProcessor(AudioProcessorBase):
         self.frames.append(frame.to_ndarray())
         return frame
 
+# -------------------- Helper: Save Audio --------------------
+def save_audio_frames(frames, filename, fs=16000):
+    if frames:
+        audio = np.concatenate(frames, axis=0).astype(np.int16)
+        wav.write(filename, fs, audio)
+        return filename
+    else:
+        return None
+
 # -------------------- REGISTER --------------------
 if page == "Register":
     st.subheader("📝 Register Your Voice")
     st.info(fake.sentence())
 
     if user_id:
+        if "register_frames" not in st.session_state:
+            st.session_state.register_frames = []
+
         ctx = webrtc_streamer(
             key=f"register-{user_id}",
             mode=WebRtcMode.SENDRECV,
@@ -51,18 +63,19 @@ if page == "Register":
 
         if ctx.audio_processor:
             st.info("🎙️ Recording... speak into your microphone.")
+
             if st.button("✅ Stop & Save Recording"):
-                if ctx.audio_processor.frames:
-                    audio = np.concatenate(ctx.audio_processor.frames, axis=0).astype(np.int16)
-                    raw_path = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
-                    wav.write(raw_path, 16000, audio)
-                    st.success(f"🎧 Audio recorded and saved: {raw_path}")
-                    st.audio(raw_path, format="audio/wav")
+                frames = ctx.audio_processor.frames
+                filename = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
+                saved_file = save_audio_frames(frames, filename)
+                if saved_file:
+                    st.success(f"🎧 Audio recorded and saved: {saved_file}")
+                    st.audio(saved_file, format="audio/wav")
 
                     # Generate embedding and store in Pinecone
                     try:
                         index = init_pinecone()
-                        embedding = audio_to_embedding_enhanced(raw_path)
+                        embedding = audio_to_embedding_enhanced(saved_file)
                         if embedding is not None:
                             index.upsert([
                                 (user_id, embedding.tolist(), {"source": "registration", "file": f"{user_id}.wav"})
@@ -90,6 +103,9 @@ elif page == "Money Transfer":
     if user_id:
         reference_file = os.path.join(RECORDINGS_DIR, f"{user_id}.wav")
         if os.path.exists(reference_file):
+            if "transfer_frames" not in st.session_state:
+                st.session_state.transfer_frames = []
+
             ctx = webrtc_streamer(
                 key=f"transfer-{user_id}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
                 mode=WebRtcMode.SENDRECV,
@@ -99,19 +115,20 @@ elif page == "Money Transfer":
 
             if ctx.audio_processor:
                 st.info("🎙️ Recording... speak the phrase now.")
+
                 if st.button("✅ Stop & Verify Recording"):
-                    if ctx.audio_processor.frames:
-                        audio = np.concatenate(ctx.audio_processor.frames, axis=0).astype(np.int16)
-                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        test_path = os.path.join(USER_INPUT, f"{user_id}_test_{timestamp}.wav")
-                        wav.write(test_path, 16000, audio)
-                        st.success(f"🎧 Audio recorded and saved: {test_path}")
-                        st.audio(test_path, format="audio/wav")
+                    frames = ctx.audio_processor.frames
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    test_path = os.path.join(USER_INPUT, f"{user_id}_test_{timestamp}.wav")
+                    saved_file = save_audio_frames(frames, test_path)
+                    if saved_file:
+                        st.success(f"🎧 Audio recorded and saved: {saved_file}")
+                        st.audio(saved_file, format="audio/wav")
 
                         # Generate embedding and query Pinecone
                         try:
                             index = init_pinecone()
-                            query_embedding = audio_to_embedding_enhanced(test_path)
+                            query_embedding = audio_to_embedding_enhanced(saved_file)
                             if query_embedding is not None:
                                 matches = index.query(vector=query_embedding.tolist(), top_k=1, include_metadata=True)
                                 if matches and matches['matches']:
